@@ -1,0 +1,66 @@
+name: Build Expenses APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '**'
+      - '.github/workflows/build-apk.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Make Gradle wrapper executable
+        run: |
+          if [ -f gradlew ]; then
+            chmod +x gradlew
+          fi
+
+      - name: Build debug APK
+        run: |
+          if [ -f gradlew ]; then
+            ./gradlew --no-daemon assembleDebug
+          else
+            gradle --no-daemon assembleDebug
+          fi
+
+      - name: Find APK
+        run: |
+          APK_PATH=$(find . -type f -path '*/build/outputs/apk/*/*.apk' | head -n 1)
+          if [ -z "$APK_PATH" ]; then
+            echo "ERROR: No APK was generated."
+            exit 1
+          fi
+          echo "APK_PATH=$APK_PATH" >> "$GITHUB_ENV"
+          echo "Found APK: $APK_PATH"
+
+      - name: Upload Expenses APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Expenses-debug-APK
+          path: ${{ env.APK_PATH }}
+          if-no-files-found: error
+          retention-days: 14
