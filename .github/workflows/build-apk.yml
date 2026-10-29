@@ -30,11 +30,16 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          packages: |
-            platform-tools
-            platforms;android-35
-            build-tools;35.0.0
+
+      - name: Accept Android SDK licenses
+        run: |
+          yes | sdkmanager --licenses || true
+
+      - name: Install Android SDK packages
+        run: |
+          sdkmanager "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0"
 
       - name: Locate Android project
         id: project
@@ -45,7 +50,7 @@ jobs:
           elif [ -f mess-android-wrapper/settings.gradle ] || [ -f mess-android-wrapper/settings.gradle.kts ]; then
             echo "dir=mess-android-wrapper" >> "$GITHUB_OUTPUT"
           else
-            echo "ERROR: Could not find settings.gradle or settings.gradle.kts"
+            echo "ERROR: Android project not found."
             exit 1
           fi
 
@@ -69,6 +74,14 @@ jobs:
             gradle --no-daemon assembleDebug
           fi
 
+      - name: Verify app package name
+        shell: bash
+        run: |
+          PROJECT_DIR="${{ steps.project.outputs.dir }}"
+          grep -R -n 'applicationId' \
+            "$PROJECT_DIR/app/build.gradle" \
+            "$PROJECT_DIR/app/build.gradle.kts" 2>/dev/null || true
+
       - name: Find APK
         id: apk
         shell: bash
@@ -76,10 +89,10 @@ jobs:
           PROJECT_DIR="${{ steps.project.outputs.dir }}"
           APK_PATH=$(find "$PROJECT_DIR" -type f \
             -path '*/build/outputs/apk/*/*.apk' \
-            ! -name '*androidTest*' | head -n 1)
+            ! -path '*/androidTest/*' | head -n 1)
 
           if [ -z "$APK_PATH" ]; then
-            echo "ERROR: No APK was generated."
+            echo "ERROR: No APK generated."
             exit 1
           fi
 
